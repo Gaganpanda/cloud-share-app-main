@@ -1,0 +1,28 @@
+# Java
+*.class
+*.jar
+*.war
+*.ear
+/target/
+/.classpath
+/.project
+/.settings/
+
+# Node
+node_modules/
+dist/
+.env
+
+# Secrets and config
+cloudshareapi/src/main/resources/application.properties
+cloudshareapi/src/main/resources/*.key
+cloudsharewebapp/.env
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
