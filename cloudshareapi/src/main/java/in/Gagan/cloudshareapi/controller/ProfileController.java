@@ -5,6 +5,8 @@ import in.Gagan.cloudshareapi.service.ProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -16,11 +18,20 @@ public class ProfileController {
     private final ProfileService profileService;
 
     @PostMapping("/register")
-    public ResponseEntity<?> registerProfile(@RequestBody ProfileDTO profileDTO) {
-        HttpStatus status = profileService.existsByClerkId(profileDTO.getClerkId()) ?
-                HttpStatus.OK : HttpStatus.CREATED;
+    public ResponseEntity<ProfileDTO> registerProfile(@RequestBody ProfileDTO profileDTO) {
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        if (auth == null || !auth.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        // 🔐 Always trust Clerk JWT, never request body
+        String clerkId = auth.getName();
+        profileDTO.setClerkId(clerkId);
+
         ProfileDTO savedProfile = profileService.createProfile(profileDTO);
 
-        return ResponseEntity.status(status).body(savedProfile);
+        return ResponseEntity.status(HttpStatus.CREATED).body(savedProfile);
     }
 }

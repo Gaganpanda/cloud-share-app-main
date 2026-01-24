@@ -60,7 +60,7 @@ public class FileController {
 
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachemnt; filename=\""+downloadbleFile.getName()+"\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachemnt; filename=\"" + downloadbleFile.getName() + "\"")
                 .body(resource);
     }
 

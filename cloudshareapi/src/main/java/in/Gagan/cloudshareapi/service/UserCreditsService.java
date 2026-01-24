@@ -15,7 +15,7 @@ public class UserCreditsService {
     public UserCredits createInitialCredits(String clerkId) {
         UserCredits userCredits = UserCredits.builder()
                 .clerkId(clerkId)
-                .credits(5)
+                .credits(100)
                 .plan("BASIC")
                 .build();
         return userCreditsRepository.save(userCredits);

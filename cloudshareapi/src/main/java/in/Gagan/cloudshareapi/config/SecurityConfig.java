@@ -17,6 +17,7 @@ import org.springframework.web.filter.CorsFilter;
 
 import java.util.List;
 
+// ... your imports ...
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -26,14 +27,21 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
-    httpSecurity.cors(Customizer.withDefaults())
-        .csrf(AbstractHttpConfigurer::disable)
-        .authorizeHttpRequests(auth -> auth
-            .requestMatchers("/webhooks/**", "/files/public/**", "/files/download/**", "/health", "/files/upload").permitAll()
-            .anyRequest().authenticated())
-        .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-        .addFilterBefore(clerkJwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
-    return httpSecurity.build();
+        httpSecurity.cors(Customizer.withDefaults())
+                .csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(
+                                "/webhooks/**",
+                                "/files/public/**",
+                                "/files/download/**",
+                                "/health",
+                                "/files/upload",
+                                "/api/v1.0/paypal/client-id")
+                        .permitAll()
+                        .anyRequest().authenticated())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .addFilterBefore(clerkJwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+        return httpSecurity.build();
     }
 
     @Bean
@@ -43,7 +51,7 @@ public class SecurityConfig {
 
     private UrlBasedCorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("*"));
+        config.setAllowedOriginPatterns(List.of("*")); // for dev; restrict in prod!
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         config.setAllowCredentials(true);

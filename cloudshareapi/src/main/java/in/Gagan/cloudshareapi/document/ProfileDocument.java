@@ -20,13 +20,21 @@ public class ProfileDocument {
 
     @Id
     private String id;
-    private String clerkId;
+
+    // 🔐 Primary identity (from Clerk JWT)
     @Indexed(unique = true)
+    private String clerkId;
+
+    // ✅ Unique only when present (allows multiple nulls)
+    @Indexed(unique = true, sparse = true)
     private String email;
+
     private String firstName;
     private String lastName;
-    private Integer credits;
     private String photoUrl;
+
+    private Integer credits;
+
     @CreatedDate
     private Instant createdAt;
 }

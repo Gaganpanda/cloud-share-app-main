@@ -30,21 +30,24 @@ public class ClerkJwtAuthFilter extends OncePerRequestFilter {
 
     private final ClerkJwksProvider jwksProvider;
 
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getServletPath();
+        return path.equals("/api/v1.0/paypal/client-id")
+                || path.contains("/webhooks")
+                || path.contains("/public")
+                || path.contains("/download")
+                || path.contains("/health");
+        // removed /files/upload so uploads are authenticated
+    }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-
-        // For webhook endpoints, skip JWT validation and continue the filter chain
-        if (request.getRequestURI().contains("/webhooks") ||
-                request.getRequestURI().contains("/public") ||
-                    request.getRequestURI().contains("/download") ||
-                        request.getRequestURI().contains("/health")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain) throws ServletException, IOException {
 
         String authHeader = request.getHeader("Authorization");
-
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             System.out.println("[ClerkJwtAuthFilter] Authorization header missing or invalid: " + authHeader);
             response.sendError(HttpServletResponse.SC_FORBIDDEN, "Authorization header missing/invalid");
@@ -54,6 +57,7 @@ public class ClerkJwtAuthFilter extends OncePerRequestFilter {
         try {
             String token = authHeader.substring(7);
             System.out.println("[ClerkJwtAuthFilter] Received token: " + token);
+
             String[] chunks = token.split("\\.");
             if (chunks.length < 3) {
                 System.out.println("[ClerkJwtAuthFilter] Invalid JWT token format: " + token);
@@ -72,10 +76,8 @@ public class ClerkJwtAuthFilter extends OncePerRequestFilter {
             }
 
             String kid = headerNode.get("kid").asText();
-
             PublicKey publicKey = jwksProvider.getPublicKey(kid);
 
-            //verify the token
             Claims claims = Jwts.parserBuilder()
                     .setSigningKey(publicKey)
                     .setAllowedClockSkewSeconds(60)
@@ -84,18 +86,20 @@ public class ClerkJwtAuthFilter extends OncePerRequestFilter {
                     .parseClaimsJws(token)
                     .getBody();
 
-            String clerkId = claims.getSubject();
+            String clerkId = claims.getSubject(); // this is what ProfileService uses
 
-            UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(clerkId, null, Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN")));
+            UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
+                    clerkId,
+                    null,
+                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN")));
 
             SecurityContextHolder.getContext().setAuthentication(authenticationToken);
             filterChain.doFilter(request, response);
+
         } catch (Exception e) {
             System.out.println("[ClerkJwtAuthFilter] Invalid JWT token: " + e.getMessage());
             e.printStackTrace();
-            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid JWT token: "+e.getMessage());
-            return;
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid JWT token: " + e.getMessage());
         }
-
     }
 }

@@ -4,11 +4,13 @@ import in.Gagan.cloudshareapi.document.ProfileDocument;
 import in.Gagan.cloudshareapi.dto.ProfileDTO;
 import in.Gagan.cloudshareapi.repository.ProfileRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -16,107 +18,99 @@ public class ProfileService {
 
     private final ProfileRepository profileRepository;
 
-    public ProfileDTO createProfile(ProfileDTO profileDTO) {
-
-        if (profileRepository.existsByClerkId(profileDTO.getClerkId())) {
-            return updateProfile(profileDTO);
-        }
-
-        ProfileDocument profile = ProfileDocument.builder()
-                .clerkId(profileDTO.getClerkId())
-                .email(profileDTO.getEmail())
-                .firstName(profileDTO.getFirstName())
-                .lastName(profileDTO.getLastName())
-                .photoUrl(profileDTO.getPhotoUrl())
-                .credits(5)
-                .createdAt(Instant.now())
-                .build();
-
-        profile = profileRepository.save(profile);
-
-        return ProfileDTO.builder()
-                .id(profile.getId())
-                .clerkId(profile.getClerkId())
-                .email(profile.getEmail())
-                .firstName(profile.getFirstName())
-                .lastName(profile.getLastName())
-                .photoUrl(profile.getPhotoUrl())
-                .credits(profile.getCredits())
-                .createdAt(profile.getCreatedAt())
-                .build();
-
-    }
-
-    public ProfileDTO updateProfile(ProfileDTO profileDTO) {
-        ProfileDocument existingProfile = profileRepository.findByClerkId(profileDTO.getClerkId());
-
-        if (existingProfile != null) {
-            //update fields if provided
-            if (profileDTO.getEmail() != null && !profileDTO.getEmail().isEmpty()) {
-                existingProfile.setEmail(profileDTO.getEmail());
-            }
-
-            if (profileDTO.getFirstName() != null && !profileDTO.getFirstName().isEmpty()) {
-                existingProfile.setFirstName(profileDTO.getFirstName());
-            }
-
-            if (profileDTO.getLastName() != null && !profileDTO.getLastName().isEmpty()) {
-                existingProfile.setLastName(profileDTO.getLastName());
-            }
-
-            if (profileDTO.getPhotoUrl() != null && !profileDTO.getPhotoUrl().isEmpty()) {
-                existingProfile.setPhotoUrl(profileDTO.getPhotoUrl());
-            }
-
-            profileRepository.save(existingProfile);
-
-            return ProfileDTO.builder()
-                    .id(existingProfile.getId())
-                    .email(existingProfile.getEmail())
-                    .clerkId(existingProfile.getClerkId())
-                    .firstName(existingProfile.getFirstName())
-                    .lastName(existingProfile.getLastName())
-                    .credits(existingProfile.getCredits())
-                    .createdAt(existingProfile.getCreatedAt())
-                    .photoUrl(existingProfile.getPhotoUrl())
-                    .build();
-        }
-        return null;
-    }
-
-    public boolean existsByClerkId(String clerkId) {
-        return profileRepository.existsByClerkId(clerkId);
-    }
-
-
-    public void deleteProfile(String clerkId) {
-        ProfileDocument existingProfile = profileRepository.findByClerkId(clerkId);
-        if (existingProfile != null) {
-            profileRepository.delete(existingProfile);
-        }
-    }
+    // ================= CURRENT USER =================
 
     public ProfileDocument getCurrentProfile() {
-        if (SecurityContextHolder.getContext().getAuthentication() == null) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        if (auth == null || !auth.isAuthenticated()) {
             throw new UsernameNotFoundException("User not authenticated");
         }
 
-        String clerkId = SecurityContextHolder.getContext().getAuthentication().getName();
-        ProfileDocument profile = profileRepository.findByClerkId(clerkId);
-        if (profile != null) {
-            return profile;
+        String clerkId = auth.getName();
+
+        return profileRepository.findByClerkId(clerkId)
+                .orElseGet(() -> {
+                    ProfileDocument profile = ProfileDocument.builder()
+                            .clerkId(clerkId)
+                            .credits(5)
+                            .createdAt(Instant.now())
+                            .build();
+                    return profileRepository.save(profile);
+                });
+    }
+
+    // ================= CREATE =================
+
+    public ProfileDTO createProfile(ProfileDTO dto) {
+
+        ProfileDocument profile = profileRepository
+                .findByClerkId(dto.getClerkId())
+                .orElse(ProfileDocument.builder()
+                        .clerkId(dto.getClerkId())
+                        .credits(5)
+                        .createdAt(Instant.now())
+                        .build()
+                );
+
+        applyDto(profile, dto);
+
+        profile = profileRepository.save(profile);
+        return mapToDTO(profile);
+    }
+
+    // ================= UPDATE (USED BY WEBHOOK) =================
+
+    public ProfileDTO updateProfile(ProfileDTO dto) {
+
+        Optional<ProfileDocument> optionalProfile =
+                profileRepository.findByClerkId(dto.getClerkId());
+
+        if (optionalProfile.isEmpty()) {
+            return null;
         }
-        // Not found, try to create
-        try {
-            profile = ProfileDocument.builder()
-                    .clerkId(clerkId)
-                    .credits(5)
-                    .createdAt(java.time.Instant.now())
-                    .build();
-            return profileRepository.save(profile);
-        } catch (org.springframework.dao.DuplicateKeyException e) {
-            // Another request created it in the meantime, fetch again
-            return profileRepository.findByClerkId(clerkId);
+
+        ProfileDocument profile = optionalProfile.get();
+        applyDto(profile, dto);
+
+        profile = profileRepository.save(profile);
+        return mapToDTO(profile);
+    }
+
+    // ================= DELETE (USED BY WEBHOOK) =================
+
+    public void deleteProfile(String clerkId) {
+        profileRepository.findByClerkId(clerkId)
+                .ifPresent(profileRepository::delete);
+    }
+
+    // ================= HELPERS =================
+
+    private void applyDto(ProfileDocument profile, ProfileDTO dto) {
+        if (dto.getEmail() != null && !dto.getEmail().isBlank()) {
+            profile.setEmail(dto.getEmail());
         }
+        if (dto.getFirstName() != null) {
+            profile.setFirstName(dto.getFirstName());
+        }
+        if (dto.getLastName() != null) {
+            profile.setLastName(dto.getLastName());
+        }
+        if (dto.getPhotoUrl() != null) {
+            profile.setPhotoUrl(dto.getPhotoUrl());
+        }
+    }
+
+    private ProfileDTO mapToDTO(ProfileDocument p) {
+        return ProfileDTO.builder()
+                .id(p.getId())
+                .clerkId(p.getClerkId())
+                .email(p.getEmail())
+                .firstName(p.getFirstName())
+                .lastName(p.getLastName())
+                .photoUrl(p.getPhotoUrl())
+                .credits(p.getCredits())
+                .createdAt(p.getCreatedAt())
+                .build();
     }
 }

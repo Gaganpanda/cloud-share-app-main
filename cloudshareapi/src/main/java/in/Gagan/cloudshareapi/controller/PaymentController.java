@@ -5,14 +5,12 @@ import in.Gagan.cloudshareapi.dto.PaymentVerificationDTO;
 import in.Gagan.cloudshareapi.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/payments")
+@CrossOrigin(origins = "http://localhost:5173")
 public class PaymentController {
 
     private final PaymentService paymentService;
@@ -20,21 +18,12 @@ public class PaymentController {
     @PostMapping("/create-order")
     public ResponseEntity<?> createOrder(@RequestBody PaymentDTO paymentDTO) {
         PaymentDTO response = paymentService.createOrder(paymentDTO);
-
-        if (response.getSuccess()) {
-            return ResponseEntity.ok(response);
-        } else {
-            return ResponseEntity.badRequest().body(response);
-        }
+        return response.getSuccess() ? ResponseEntity.ok(response) : ResponseEntity.badRequest().body(response);
     }
 
     @PostMapping("/verify-payment")
     public ResponseEntity<?> verifyPayment(@RequestBody PaymentVerificationDTO request) {
-       PaymentDTO response = paymentService.verifyPayment(request);
-        if (response.getSuccess()) {
-            return ResponseEntity.ok(response);
-        } else {
-            return ResponseEntity.badRequest().body(response);
-        }
+        PaymentDTO response = paymentService.verifyPayment(request);
+        return response.getSuccess() ? ResponseEntity.ok(response) : ResponseEntity.badRequest().body(response);
     }
 }
