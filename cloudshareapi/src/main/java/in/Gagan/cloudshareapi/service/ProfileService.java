@@ -10,7 +10,6 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -18,8 +17,7 @@ public class ProfileService {
 
     private final ProfileRepository profileRepository;
 
-    // ================= CURRENT USER =================
-
+    // Get current authenticated user's profile (auto-create if not exists)
     public ProfileDocument getCurrentProfile() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
@@ -30,87 +28,46 @@ public class ProfileService {
         String clerkId = auth.getName();
 
         return profileRepository.findByClerkId(clerkId)
-                .orElseGet(() -> {
-                    ProfileDocument profile = ProfileDocument.builder()
-                            .clerkId(clerkId)
-                            .credits(5)
-                            .createdAt(Instant.now())
-                            .build();
-                    return profileRepository.save(profile);
-                });
+                .orElseGet(() -> profileRepository.save(
+                        ProfileDocument.builder()
+                                .clerkId(clerkId)
+                                .createdAt(Instant.now())
+                                .build()
+                ));
     }
 
-    // ================= CREATE =================
-
-    public ProfileDTO createProfile(ProfileDTO dto) {
+    // Create or update profile (used by Clerk webhook + /me endpoint)
+    public ProfileDTO createOrUpdate(ProfileDTO dto) {
 
         ProfileDocument profile = profileRepository
                 .findByClerkId(dto.getClerkId())
                 .orElse(ProfileDocument.builder()
                         .clerkId(dto.getClerkId())
-                        .credits(5)
                         .createdAt(Instant.now())
                         .build()
                 );
 
-        applyDto(profile, dto);
+        if (dto.getEmail() != null) profile.setEmail(dto.getEmail());
+        if (dto.getFirstName() != null) profile.setFirstName(dto.getFirstName());
+        if (dto.getLastName() != null) profile.setLastName(dto.getLastName());
+        if (dto.getPhotoUrl() != null) profile.setPhotoUrl(dto.getPhotoUrl());
 
         profile = profileRepository.save(profile);
-        return mapToDTO(profile);
+
+        return ProfileDTO.builder()
+                .id(profile.getId())
+                .clerkId(profile.getClerkId())
+                .email(profile.getEmail())
+                .firstName(profile.getFirstName())
+                .lastName(profile.getLastName())
+                .photoUrl(profile.getPhotoUrl())
+                .createdAt(profile.getCreatedAt())
+                .build();
     }
 
-    // ================= UPDATE (USED BY WEBHOOK) =================
-
-    public ProfileDTO updateProfile(ProfileDTO dto) {
-
-        Optional<ProfileDocument> optionalProfile =
-                profileRepository.findByClerkId(dto.getClerkId());
-
-        if (optionalProfile.isEmpty()) {
-            return null;
-        }
-
-        ProfileDocument profile = optionalProfile.get();
-        applyDto(profile, dto);
-
-        profile = profileRepository.save(profile);
-        return mapToDTO(profile);
-    }
-
-    // ================= DELETE (USED BY WEBHOOK) =================
-
+    // Delete profile (used by Clerk user.deleted webhook)
     public void deleteProfile(String clerkId) {
         profileRepository.findByClerkId(clerkId)
                 .ifPresent(profileRepository::delete);
-    }
-
-    // ================= HELPERS =================
-
-    private void applyDto(ProfileDocument profile, ProfileDTO dto) {
-        if (dto.getEmail() != null && !dto.getEmail().isBlank()) {
-            profile.setEmail(dto.getEmail());
-        }
-        if (dto.getFirstName() != null) {
-            profile.setFirstName(dto.getFirstName());
-        }
-        if (dto.getLastName() != null) {
-            profile.setLastName(dto.getLastName());
-        }
-        if (dto.getPhotoUrl() != null) {
-            profile.setPhotoUrl(dto.getPhotoUrl());
-        }
-    }
-
-    private ProfileDTO mapToDTO(ProfileDocument p) {
-        return ProfileDTO.builder()
-                .id(p.getId())
-                .clerkId(p.getClerkId())
-                .email(p.getEmail())
-                .firstName(p.getFirstName())
-                .lastName(p.getLastName())
-                .photoUrl(p.getPhotoUrl())
-                .credits(p.getCredits())
-                .createdAt(p.getCreatedAt())
-                .build();
     }
 }

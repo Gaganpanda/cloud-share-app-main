@@ -8,7 +8,7 @@
 		<version>3.5.3</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>in.bushansirgur</groupId>
+	<groupId>in.Gagan</groupId>
 	<artifactId>cloudshareapi</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>cloudshareapi</name>
@@ -38,6 +38,17 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>com.svix</groupId>
+			<artifactId>svix</artifactId>
+			<version>1.14.0</version>
+		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>

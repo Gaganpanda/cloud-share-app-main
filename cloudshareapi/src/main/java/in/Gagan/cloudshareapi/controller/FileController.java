@@ -1,78 +1,177 @@
 package in.Gagan.cloudshareapi.controller;
 
-import in.Gagan.cloudshareapi.document.UserCredits;
-import in.Gagan.cloudshareapi.dto.FileMetadataDTO;
-import in.Gagan.cloudshareapi.service.FileMetadataService;
-import in.Gagan.cloudshareapi.service.UserCreditsService;
+import in.Gagan.cloudshareapi.document.FileMetadataDocument;
+import in.Gagan.cloudshareapi.repository.FileMetadataRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
+import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
+import java.util.UUID;
 
 @RestController
-@RequiredArgsConstructor
 @RequestMapping("/files")
+@RequiredArgsConstructor
 public class FileController {
 
-    private final FileMetadataService fileMetadataService;
-    private final UserCreditsService userCreditsService;
+    private final FileMetadataRepository fileRepository;
 
+    // ======================================================
+    // ✅ UPLOAD FILES
+    // ======================================================
     @PostMapping("/upload")
-    public ResponseEntity<?> uploadFiles(@RequestPart("files") MultipartFile files[]) throws IOException {
-        Map<String, Object> response = new HashMap<>();
-        List<FileMetadataDTO> list = fileMetadataService.uploadFiles(files);
+    public ResponseEntity<?> uploadFiles(
+            @RequestParam("files") List<MultipartFile> files,
+            Authentication authentication
+    ) {
 
-        UserCredits finalCredits = userCreditsService.getUserCredits();
+        try {
 
-        response.put("files", list);
-        response.put("remainingCredits", finalCredits.getCredits());
-        return ResponseEntity.ok(response);
+            String clerkId = authentication.getName();
+
+            String uploadDir =
+                    System.getProperty("user.dir") + File.separator + "uploads";
+
+            File directory = new File(uploadDir);
+            if (!directory.exists()) {
+                directory.mkdirs();
+            }
+
+            for (MultipartFile file : files) {
+
+                String fileId = UUID.randomUUID().toString();
+                String fileName = fileId + "_" + file.getOriginalFilename();
+
+                Path filePath = Paths.get(uploadDir, fileName);
+
+                file.transferTo(filePath.toFile());
+
+                FileMetadataDocument metadata =
+                        FileMetadataDocument.builder()
+                                .id(fileId)
+                                .name(file.getOriginalFilename())
+                                .type(file.getContentType())
+                                .size(file.getSize())
+                                .clerkId(clerkId)
+                                .publicStatus(false)   // ✅ CLEAN FIX
+                                .fileLocation(filePath.toString())
+                                .uploadedAt(LocalDateTime.now())
+                                .build();
+
+                fileRepository.save(metadata);
+            }
+
+            return ResponseEntity.ok("Files uploaded successfully");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError()
+                    .body("Upload failed: " + e.getMessage());
+        }
     }
 
+    // ======================================================
+    // ✅ FETCH MY FILES
+    // ======================================================
     @GetMapping("/my")
-    public ResponseEntity<?> getFilesForCurrentUser() {
-        List<FileMetadataDTO> files = fileMetadataService.getFiles();
-        return ResponseEntity.ok(files);
+    public ResponseEntity<List<FileMetadataDocument>> getMyFiles(
+            Authentication auth
+    ) {
+        return ResponseEntity.ok(
+                fileRepository.findByClerkIdOrderByUploadedAtDesc(auth.getName())
+        );
     }
 
-    @GetMapping("/public/{id}")
-    public ResponseEntity<?> getPublicFile(@PathVariable String id) {
-        FileMetadataDTO file = fileMetadataService.getPublicFile(id);
-        return ResponseEntity.ok(file);
+    // ======================================================
+    // ✅ TOGGLE PUBLIC
+    // ======================================================
+    @PatchMapping("/{id}/toggle-public")
+    public ResponseEntity<Void> togglePublic(@PathVariable String id) {
+
+        FileMetadataDocument file =
+                fileRepository.findById(id)
+                        .orElseThrow(() ->
+                                new RuntimeException("File not found"));
+
+        file.setPublic(!file.isPublic());  // ✅ works clean
+
+        fileRepository.save(file);
+
+        return ResponseEntity.ok().build();
     }
 
+    // ======================================================
+    // ✅ DOWNLOAD FILE
+    // ======================================================
     @GetMapping("/download/{id}")
-    public ResponseEntity<Resource> download(@PathVariable String id) throws IOException {
-        FileMetadataDTO downloadbleFile = fileMetadataService.getDownloadableFile(id);
-        Path path = Paths.get(downloadbleFile.getFileLocation());
-        Resource resource = new UrlResource(path.toUri());
+    public ResponseEntity<byte[]> download(@PathVariable String id) {
 
-        return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachemnt; filename=\"" + downloadbleFile.getName() + "\"")
-                .body(resource);
+        try {
+
+            FileMetadataDocument file =
+                    fileRepository.findById(id)
+                            .orElseThrow(() ->
+                                    new RuntimeException("File not found"));
+
+            Path path = Paths.get(file.getFileLocation());
+            byte[] fileBytes = java.nio.file.Files.readAllBytes(path);
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"" + file.getName() + "\"")
+                    .body(fileBytes);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
+    // ======================================================
+    // ✅ DELETE FILE
+    // ======================================================
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteFile(@PathVariable String id) {
-        fileMetadataService.deleteFile(id);
+    public ResponseEntity<Void> delete(@PathVariable String id) {
+
+        FileMetadataDocument file =
+                fileRepository.findById(id)
+                        .orElseThrow(() ->
+                                new RuntimeException("File not found"));
+
+        try {
+            java.nio.file.Files.deleteIfExists(
+                    Paths.get(file.getFileLocation()));
+        } catch (Exception ignored) {}
+
+        fileRepository.deleteById(id);
+
         return ResponseEntity.noContent().build();
     }
 
-    @PatchMapping("/{id}/toggle-public")
-    public ResponseEntity<?> togglePublic(@PathVariable String id) {
-        FileMetadataDTO file = fileMetadataService.togglePublic(id);
+    // ======================================================
+    // ✅ PUBLIC FILE VIEW
+    // ======================================================
+    @GetMapping("/public/{id}")
+    public ResponseEntity<FileMetadataDocument> getPublicFile(
+            @PathVariable String id
+    ) {
+
+        FileMetadataDocument file =
+                fileRepository.findById(id)
+                        .orElseThrow(() ->
+                                new RuntimeException("File not found"));
+
+        if (!file.isPublic()) {
+            return ResponseEntity.status(403).build();
+        }
+
         return ResponseEntity.ok(file);
     }
 }

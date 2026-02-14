@@ -1,7 +1,6 @@
 import DashboardLayout from "../layout/DashboardLayout.jsx";
-import { useContext, useState } from "react";
+import { useState } from "react";
 import { useAuth } from "@clerk/clerk-react";
-import { UserCreditsContext } from "../context/UserCreditsContext.jsx";
 import { AlertCircle } from "lucide-react";
 import axios from "axios";
 import { apiEndpoints } from "../util/apiEndpoints.js";
@@ -11,10 +10,10 @@ const Upload = () => {
   const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState(""); //success or error
+  const [messageType, setMessageType] = useState("");
+
   const { getToken } = useAuth();
-  const { credits, setCredits } = useContext(UserCreditsContext);
-  const MAX_FILES = 5;
+  const MAX_FILES = 5; // per upload batch only
 
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files);
@@ -25,29 +24,18 @@ const Upload = () => {
       return;
     }
 
-    //add the new files into the existing files
-    setFiles((prevFiles) => [...prevFiles, ...selectedFiles]);
+    setFiles((prev) => [...prev, ...selectedFiles]);
     setMessage("");
     setMessageType("");
   };
 
   const handleRemoveFile = (index) => {
-    setFiles((prevFiles) => prevFiles.filter((_, i) => i !== index));
-    setMessageType("");
-    setMessage("");
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleUpload = async () => {
     if (files.length === 0) {
-      setMessageType("error");
-      setMessage("Please select atleast one file to upload.");
-      return;
-    }
-
-    if (files.length > MAX_FILES) {
-      setMessage(
-        `You can only upload a maximum of ${MAX_FILES} files at once.`
-      );
+      setMessage("Please select at least one file to upload.");
       setMessageType("error");
       return;
     }
@@ -61,23 +49,17 @@ const Upload = () => {
 
     try {
       const token = await getToken();
-      console.log("Upload token:", token); // Debug: log the token
-      const response = await axios.post(apiEndpoints.UPLOAD_FILE, formData, {
+
+      await axios.post(apiEndpoints.UPLOAD_FILE, formData, {
         headers: {
-          "Content-Type": "multipart/form-data",
           Authorization: `Bearer ${token}`,
         },
       });
-
-      if (response.data && response.data.remainingCredits !== undefined) {
-        setCredits(response.data.remainingCredits);
-      }
 
       setMessage("Files uploaded successfully.");
       setMessageType("success");
       setFiles([]);
     } catch (error) {
-      console.error("Error uploading files: ", error);
       setMessage(
         error.response?.data?.message ||
           "Error uploading files. Please try again."
@@ -87,12 +69,6 @@ const Upload = () => {
       setUploading(false);
     }
   };
-
-  const isUploadDisabled =
-    files.length === 0 ||
-    files.length > MAX_FILES ||
-    credits <= 0 ||
-    files.length > credits;
 
   return (
     <DashboardLayout activeMenu="Upload">
@@ -105,7 +81,8 @@ const Upload = () => {
                 : messageType === "success"
                 ? "bg-green-50 text-green-700"
                 : "bg-blue-50 text-blue-700"
-            }`}>
+            }`}
+          >
             {messageType === "error" && <AlertCircle size={20} />}
             {message}
           </div>
@@ -117,8 +94,7 @@ const Upload = () => {
           onUpload={handleUpload}
           uploading={uploading}
           onRemoveFile={handleRemoveFile}
-          remainingCredits={credits}
-          isUploadDisabled={isUploadDisabled}
+          isUploadDisabled={uploading || files.length === 0}
         />
       </div>
     </DashboardLayout>
