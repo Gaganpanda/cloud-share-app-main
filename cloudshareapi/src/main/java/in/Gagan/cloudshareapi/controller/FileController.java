@@ -1,19 +1,18 @@
 package in.Gagan.cloudshareapi.controller;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import in.Gagan.cloudshareapi.document.FileMetadataDocument;
 import in.Gagan.cloudshareapi.repository.FileMetadataRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -22,10 +21,8 @@ import java.util.UUID;
 public class FileController {
 
     private final FileMetadataRepository fileRepository;
+    private final Cloudinary cloudinary;
 
-    // ======================================================
-    // ✅ UPLOAD FILES
-    // ======================================================
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFiles(
             @RequestParam("files") List<MultipartFile> files,
@@ -33,25 +30,19 @@ public class FileController {
     ) {
 
         try {
-
             String clerkId = authentication.getName();
-
-            String uploadDir =
-                    System.getProperty("user.dir") + File.separator + "uploads";
-
-            File directory = new File(uploadDir);
-            if (!directory.exists()) {
-                directory.mkdirs();
-            }
 
             for (MultipartFile file : files) {
 
                 String fileId = UUID.randomUUID().toString();
-                String fileName = fileId + "_" + file.getOriginalFilename();
 
-                Path filePath = Paths.get(uploadDir, fileName);
+                Map uploadResult = cloudinary.uploader().upload(
+                        file.getBytes(),
+                        ObjectUtils.asMap("folder", "cloudshare")
+                );
 
-                file.transferTo(filePath.toFile());
+                String fileUrl = uploadResult.get("secure_url").toString();
+                String publicId = uploadResult.get("public_id").toString();
 
                 FileMetadataDocument metadata =
                         FileMetadataDocument.builder()
@@ -60,94 +51,71 @@ public class FileController {
                                 .type(file.getContentType())
                                 .size(file.getSize())
                                 .clerkId(clerkId)
-                                .publicStatus(false)   // ✅ CLEAN FIX
-                                .fileLocation(filePath.toString())
+                                .publicStatus(false)
+                                .fileLocation(fileUrl)
+                                .cloudinaryPublicId(publicId)
                                 .uploadedAt(LocalDateTime.now())
                                 .build();
 
                 fileRepository.save(metadata);
             }
 
-            return ResponseEntity.ok("Files uploaded successfully");
+            return ResponseEntity.ok("Uploaded successfully");
 
         } catch (Exception e) {
-            e.printStackTrace();
             return ResponseEntity.internalServerError()
                     .body("Upload failed: " + e.getMessage());
         }
     }
 
-    // ======================================================
-    // ✅ FETCH MY FILES
-    // ======================================================
     @GetMapping("/my")
-    public ResponseEntity<List<FileMetadataDocument>> getMyFiles(
-            Authentication auth
-    ) {
+    public ResponseEntity<List<FileMetadataDocument>> getMyFiles(Authentication auth) {
         return ResponseEntity.ok(
                 fileRepository.findByClerkIdOrderByUploadedAtDesc(auth.getName())
         );
     }
 
-    // ======================================================
-    // ✅ TOGGLE PUBLIC
-    // ======================================================
     @PatchMapping("/{id}/toggle-public")
-    public ResponseEntity<Void> togglePublic(@PathVariable String id) {
+    public ResponseEntity<Void> togglePublic(
+            @PathVariable String id,
+            Authentication authentication
+    ) {
 
         FileMetadataDocument file =
                 fileRepository.findById(id)
                         .orElseThrow(() ->
                                 new RuntimeException("File not found"));
 
-        file.setPublic(!file.isPublic());  // ✅ works clean
+        if (!file.getClerkId().equals(authentication.getName())) {
+            return ResponseEntity.status(403).build();
+        }
 
+        file.setPublic(!file.isPublic());
         fileRepository.save(file);
 
         return ResponseEntity.ok().build();
     }
 
-    // ======================================================
-    // ✅ DOWNLOAD FILE
-    // ======================================================
-    @GetMapping("/download/{id}")
-    public ResponseEntity<byte[]> download(@PathVariable String id) {
-
-        try {
-
-            FileMetadataDocument file =
-                    fileRepository.findById(id)
-                            .orElseThrow(() ->
-                                    new RuntimeException("File not found"));
-
-            Path path = Paths.get(file.getFileLocation());
-            byte[] fileBytes = java.nio.file.Files.readAllBytes(path);
-
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            "attachment; filename=\"" + file.getName() + "\"")
-                    .body(fileBytes);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().build();
-        }
-    }
-
-    // ======================================================
-    // ✅ DELETE FILE
-    // ======================================================
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable String id) {
+    public ResponseEntity<Void> delete(
+            @PathVariable String id,
+            Authentication authentication
+    ) {
 
         FileMetadataDocument file =
                 fileRepository.findById(id)
                         .orElseThrow(() ->
                                 new RuntimeException("File not found"));
 
+        if (!file.getClerkId().equals(authentication.getName())) {
+            return ResponseEntity.status(403).build();
+        }
+
         try {
-            java.nio.file.Files.deleteIfExists(
-                    Paths.get(file.getFileLocation()));
+            cloudinary.uploader().destroy(
+                    file.getCloudinaryPublicId(),
+                    ObjectUtils.emptyMap()
+            );
         } catch (Exception ignored) {}
 
         fileRepository.deleteById(id);
@@ -155,9 +123,27 @@ public class FileController {
         return ResponseEntity.noContent().build();
     }
 
-    // ======================================================
-    // ✅ PUBLIC FILE VIEW
-    // ======================================================
+    @GetMapping("/download/{id}")
+    public ResponseEntity<?> download(
+            @PathVariable String id,
+            Authentication authentication
+    ) {
+
+        FileMetadataDocument file =
+                fileRepository.findById(id)
+                        .orElseThrow(() ->
+                                new RuntimeException("File not found"));
+
+        if (!file.getClerkId().equals(authentication.getName()) && !file.isPublic()) {
+            return ResponseEntity.status(403).build();
+        }
+
+        return ResponseEntity
+                .status(302)
+                .header("Location", file.getFileLocation())
+                .build();
+    }
+
     @GetMapping("/public/{id}")
     public ResponseEntity<FileMetadataDocument> getPublicFile(
             @PathVariable String id

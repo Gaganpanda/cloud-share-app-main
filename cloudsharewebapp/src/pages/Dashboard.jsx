@@ -8,8 +8,8 @@ import DashboardUpload from "../components/DashboardUpload.jsx";
 import RecentFiles from "../components/RecentFiles.jsx";
 
 const Dashboard = () => {
-  const [files, setFiles] = useState([]);
-  const [uploadFiles, setUploadFiles] = useState([]);
+  const [recentFiles, setRecentFiles] = useState([]);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -18,82 +18,95 @@ const Dashboard = () => {
   const { getToken } = useAuth();
   const MAX_FILES = 5;
 
-  useEffect(() => {
-    const fetchRecentFiles = async () => {
+  // ===============================
+  // FETCH RECENT FILES
+  // ===============================
+  const fetchRecentFiles = async () => {
+    try {
       setLoading(true);
-      try {
-        const token = await getToken();
-        const res = await axios.get(apiEndpoints.FETCH_FILES, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+      const token = await getToken();
 
-        const sorted = res.data
-          .sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))
-          .slice(0, 5);
+      const res = await axios.get(apiEndpoints.FETCH_FILES, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-        setFiles(sorted);
-      } catch (e) {
-        console.error("Error fetching files", e);
-      } finally {
-        setLoading(false);
-      }
-    };
+      const sorted = res.data
+        .sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))
+        .slice(0, 5);
 
+      setRecentFiles(sorted);
+    } catch (err) {
+      console.error("Error fetching files:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchRecentFiles();
-  }, [getToken]);
+  }, []);
 
+  // ===============================
+  // HANDLE FILE SELECT
+  // ===============================
   const handleFileChange = (e) => {
-    const selected = Array.from(e.target.files);
+    const newFiles = Array.from(e.target.files);
 
-    if (uploadFiles.length + selected.length > MAX_FILES) {
-      setMessage(`You can upload max ${MAX_FILES} files at once.`);
+    if (selectedFiles.length + newFiles.length > MAX_FILES) {
+      setMessage(`You can upload maximum ${MAX_FILES} files at once.`);
       setMessageType("error");
       return;
     }
 
-    setUploadFiles((prev) => [...prev, ...selected]);
+    setSelectedFiles((prev) => [...prev, ...newFiles]);
     setMessage("");
   };
 
+  // ===============================
+  // REMOVE FILE
+  // ===============================
   const handleRemoveFile = (index) => {
-    setUploadFiles((prev) => prev.filter((_, i) => i !== index));
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // ===============================
+  // HANDLE UPLOAD
+  // ===============================
   const handleUpload = async () => {
-    if (uploadFiles.length === 0) {
+    if (selectedFiles.length === 0) {
       setMessage("Select at least one file.");
       setMessageType("error");
       return;
     }
 
-    setUploading(true);
-    setMessage("Uploading files...");
-    setMessageType("info");
-
-    const formData = new FormData();
-    uploadFiles.forEach((f) => formData.append("files", f));
-
     try {
+      setUploading(true);
+      setMessage("Uploading...");
+      setMessageType("info");
+
       const token = await getToken();
+
+      const formData = new FormData();
+      selectedFiles.forEach((file) => {
+        formData.append("files", file);
+      });
+
       await axios.post(apiEndpoints.UPLOAD_FILE, formData, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
       });
 
       setMessage("Files uploaded successfully!");
       setMessageType("success");
-      setUploadFiles([]);
+      setSelectedFiles([]);
 
-      // Refresh recent files
-      const res = await axios.get(apiEndpoints.FETCH_FILES, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      setFiles(
-        res.data
-          .sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))
-          .slice(0, 5)
-      );
-    } catch (e) {
+      await fetchRecentFiles();
+    } catch (error) {
+      console.error("Upload error:", error);
       setMessage("Upload failed. Try again.");
       setMessageType("error");
     } finally {
@@ -111,7 +124,9 @@ const Dashboard = () => {
             className={`mb-6 p-4 rounded ${
               messageType === "error"
                 ? "bg-red-50 text-red-700"
-                : "bg-green-50 text-green-700"
+                : messageType === "success"
+                ? "bg-green-50 text-green-700"
+                : "bg-blue-50 text-blue-700"
             }`}
           >
             {message}
@@ -121,11 +136,12 @@ const Dashboard = () => {
         <div className="flex flex-col md:flex-row gap-6">
           <div className="w-full md:w-[40%]">
             <DashboardUpload
-              files={uploadFiles}
+              files={selectedFiles}
               onFileChange={handleFileChange}
               onUpload={handleUpload}
               uploading={uploading}
               onRemoveFile={handleRemoveFile}
+              remainingUploads={MAX_FILES - selectedFiles.length}
             />
           </div>
 
@@ -135,7 +151,7 @@ const Dashboard = () => {
                 <Loader2 className="animate-spin text-purple-500" size={40} />
               </div>
             ) : (
-              <RecentFiles files={files} />
+              <RecentFiles files={recentFiles} />
             )}
           </div>
         </div>

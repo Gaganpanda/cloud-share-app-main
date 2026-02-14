@@ -1,10 +1,38 @@
-HELP.md
+####################################
+# Spring Boot / Maven
+####################################
 target/
 .mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
 
-### STS ###
+####################################
+# Environment Variables
+####################################
+src/main/resources/.env
+.env.*
+application-local.properties
+
+####################################
+# Logs
+####################################
+*.log
+logs/
+
+####################################
+# IntelliJ IDEA
+####################################
+.idea/
+*.iml
+*.iws
+*.ipr
+
+####################################
+# VS Code
+####################################
+.vscode/
+
+####################################
+# Eclipse / STS
+####################################
 .apt_generated
 .classpath
 .factorypath
@@ -13,21 +41,18 @@ target/
 .springBeans
 .sts4-cache
 
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
-
-### NetBeans ###
+####################################
+# NetBeans
+####################################
 /nbproject/private/
 /nbbuild/
 /dist/
 /nbdist/
 /.nb-gradle/
 build/
-!**/src/main/**/build/
-!**/src/test/**/build/
 
-### VS Code ###
-.vscode/
+####################################
+# OS Files
+####################################
+.DS_Store
+Thumbs.db
