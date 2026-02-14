@@ -6,7 +6,7 @@ import {
   Lock,
   Trash2
 } from "lucide-react";
-import { getFileIcon, getSafeFileName } from "../utils/fileUtils";
+import { getFileIcon, getSafeFileName } from "../util/fileUtils";
 
 const FileListRow = ({
   file,
