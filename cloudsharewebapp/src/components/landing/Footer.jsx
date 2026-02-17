@@ -6,13 +6,22 @@ const Footer = () => {
                     <p className="text-base text-gray-400">
                         &copy; 2025 CloudShare. All rights reserved.
                     </p>
+
                     <p className="text-base text-white mt-2">
-                        Developed by  Vijaypal Singh
+                        Developed by{" "}
+                        <a
+                            href="https://www.linkedin.com/in/gagan-pandey-4514b0289/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-400 hover:text-blue-500 underline transition-colors duration-200"
+                        >
+                            Gagan Pandey
+                        </a>
                     </p>
                 </div>
             </div>
         </footer>
-    )
-}
+    );
+};
 
 export default Footer;
