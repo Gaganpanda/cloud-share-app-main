@@ -4,6 +4,7 @@ import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.time.LocalDateTime;
 
@@ -24,19 +25,19 @@ public class FileMetadataDocument {
     @Indexed
     private String clerkId;
 
-    private boolean publicStatus;
+    @Field("publicStatus")
+    private Boolean publicStatus;
 
-    private String fileLocation; // Cloudinary URL
-
+    private String fileLocation;
     private String cloudinaryPublicId;
 
     private LocalDateTime uploadedAt;
 
     public boolean isPublic() {
-        return publicStatus;
+        return Boolean.TRUE.equals(publicStatus);
     }
 
-    public void setPublic(boolean publicStatus) {
-        this.publicStatus = publicStatus;
+    public void setPublic(boolean value) {
+        this.publicStatus = value;
     }
 }
