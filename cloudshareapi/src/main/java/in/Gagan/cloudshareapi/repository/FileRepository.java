@@ -5,8 +5,9 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 
 import java.util.List;
 
-public interface FileMetadataRepository
+public interface FileRepository
         extends MongoRepository<FileMetadataDocument, String> {
 
     List<FileMetadataDocument> findByClerkIdOrderByUploadedAtDesc(String clerkId);
 }
+
