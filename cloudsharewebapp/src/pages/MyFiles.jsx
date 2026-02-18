@@ -1,6 +1,6 @@
 import DashboardLayout from "../layout/DashboardLayout.jsx";
 import {useEffect, useState} from "react";
-import { File, FileIcon, FileText, Grid, Image, List, Music, Video } from "lucide-react";
+import { File, Grid, List } from "lucide-react";
 import {useAuth} from "@clerk/clerk-react";
 import axios from "axios";
 import toast from "react-hot-toast";
@@ -14,9 +14,9 @@ import FileListRow from "../components/FileListRow.jsx";
 const MyFiles = () => {
     const [files, setFiles] = useState([]);
     const [fileTypeFilter, setFileTypeFilter] = useState('all');
-    // Helper to determine file type
+
     const getFileType = (file) => {
-        const ext = file.name.split('.').pop().toLowerCase();
+        const ext = file.name?.split('.').pop().toLowerCase() || '';
         if (["jpg", "jpeg", "png", "gif", "svg", "webp"].includes(ext)) return "image";
         if (["mp4", "webm", "mov", "avi", "mkv"].includes(ext)) return "video";
         if (["mp3", "wav", "ogg", "flac", "m4a"].includes(ext)) return "audio";
@@ -24,7 +24,6 @@ const MyFiles = () => {
         return "other";
     };
 
-    // Filtered files based on selected type
     const filteredFiles = fileTypeFilter === 'all' ? files : files.filter(f => getFileType(f) === fileTypeFilter);
     const [viewMode, setViewMode] = useState("list");
     const {getToken} = useAuth();
@@ -39,56 +38,66 @@ const MyFiles = () => {
         link: ""
     });
 
-    //fetching the files for a logged in user
     const fetchFiles = async () => {
         try {
             const token = await getToken();
-            console.log(token);
-            const response = await axios.get(apiEndpoints.FETCH_FILES, {headers: {Authorization: `Bearer ${token}`}});
+            const response = await axios.get(apiEndpoints.FETCH_FILES, {
+                headers: {Authorization: `Bearer ${token}`}
+            });
             if (response.status === 200) {
                 setFiles(response.data);
             }
-        }catch (error) {
-            console.error('Error fetching the files from server: ', error);
-            toast.error('Error fetching the files from server: ', error.message);
+        } catch (error) {
+            console.error('Error fetching files:', error);
+            toast.error('Failed to load files');
         }
     }
 
-    //Toggles the public/private status of a file
     const togglePublic = async (fileToUpdate) => {
         try {
             const token = await getToken();
-            await axios.patch(apiEndpoints.TOGGLE_FILE(fileToUpdate.id), {}, {headers: {Authorization: `Bearer ${token}`}});
-            console.log('data', fileToUpdate);
-            setFiles(files.map((file) => file.id === fileToUpdate.id ? {...file, isPublic: !file.isPublic}: file));
-        }catch (error) {
+            await axios.patch(
+                apiEndpoints.TOGGLE_FILE(fileToUpdate.id),
+                {},
+                {headers: {Authorization: `Bearer ${token}`}}
+            );
+
+            setFiles(files.map((file) =>
+                file.id === fileToUpdate.id
+                    ? {...file, publicStatus: !file.publicStatus}
+                    : file
+            ));
+
+            toast.success(fileToUpdate.publicStatus ? 'File is now private' : 'File is now public');
+        } catch (error) {
             console.error('Error toggling file status', error);
-            toast.error('Error toggling file status: ', error.message);
+            toast.error('Failed to update file status');
         }
     }
 
-    //Handle file download
+    // ✅ FIXED DOWNLOAD HANDLER - Uses Cloudinary URL
     const handleDownload = async (file) => {
         try {
             const token = await getToken();
-            const response = await axios.get(apiEndpoints.DOWNLOAD_FILE(file.id), {headers: {Authorization: `Bearer ${token}`}, responseType: 'blob'});
 
-            // create a blob url and trigger download
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement("a");
-            link.href = url;
-            link.setAttribute("download", file.name);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(url); // clean up the object url
-        }catch (error) {
-            console.error('Download failed', error);
-            toast.error('Error downloading file', error.message);
+            const response = await axios.get(
+                apiEndpoints.DOWNLOAD_FILE(file.id),
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
+            );
+
+            if (response.data.url) {
+                window.open(response.data.url, "_blank");
+                toast.success('Download started');
+            }
+
+        } catch (error) {
+            console.error("Download failed", error);
+            toast.error("Failed to download file");
         }
-    }
+    };
 
-    //Closes the delete confirmation modal
     const closeDeleteConfirmation = () => {
         setDeleteConfirmation({
             isOpen: false,
@@ -96,7 +105,6 @@ const MyFiles = () => {
         })
     }
 
-    //Opens the delete confirmation modal
     const openDeleteConfirmation = (fileId) => {
         setDeleteConfirmation({
             isOpen: true,
@@ -104,7 +112,6 @@ const MyFiles = () => {
         })
     }
 
-    //opens the share link modal
     const openShareModal = (fileId) => {
         const link = `${window.location.origin}/file/${fileId}`;
         setShareModal({
@@ -114,7 +121,6 @@ const MyFiles = () => {
         });
     }
 
-    //close the share link modal
     const closeShareModal = () => {
         setShareModal({
             isOpen: false,
@@ -123,62 +129,42 @@ const MyFiles = () => {
         });
     }
 
-    //Delete a file after confirmation
     const handleDelete = async () => {
         const fileId = deleteConfirmation.fileId;
         if (!fileId) return;
 
         try {
             const token = await getToken();
-            const response = await axios.delete(apiEndpoints.DELETE_FILE(fileId), {headers: {Authorization: `Bearer ${token}`}});
+            const response = await axios.delete(
+                apiEndpoints.DELETE_FILE(fileId),
+                {headers: {Authorization: `Bearer ${token}`}}
+            );
+
             if (response.status === 204) {
                 setFiles(files.filter((file) => file.id !== fileId));
                 closeDeleteConfirmation();
-            } else {
-                toast.error('Error deleting file');
+                toast.success('File deleted successfully');
             }
-        }catch (error) {
+        } catch (error) {
             console.error('Error deleting file', error);
-            toast.error('Error deleting file', error.message);
+            toast.error('Failed to delete file');
         }
     }
 
     useEffect(() => {
         fetchFiles();
-    }, [getToken]);
-
-    const getFileIcon = (file) => {
-        const extenstion = file.name.split('.').pop().toLowerCase();
-
-        if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'].includes(extenstion)) {
-            return <Image size={24} className="text-purple-500" />
-        }
-
-        if (['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(extenstion)) {
-            return <Video size={24} className="text-blue-500" />
-        }
-
-        if (['mp3', 'wav', 'ogg', 'flac', 'm4a'].includes(extenstion)) {
-            return <Music size={24} className="text-green-500" />
-        }
-
-        if (['pdf', 'doc', 'docx', 'txt', 'rtf'].includes(extenstion)) {
-            return <FileText size={24} className="text-amber-500" />
-        }
-
-        return <FileIcon size={24} className="text-purple-500" />
-    }
+    }, []);
 
     return (
         <DashboardLayout activeMenu="My Files">
             <div className="p-6">
                 <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-                    <h2 className="text-2xl font-bold">My Files {files.length}</h2>
+                    <h2 className="text-2xl font-bold">My Files ({files.length})</h2>
                     <div className="flex items-center gap-3">
                         <select
                             value={fileTypeFilter}
                             onChange={e => setFileTypeFilter(e.target.value)}
-                            className="px-3 py-1 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="px-3 py-1 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
                         >
                             <option value="all">All</option>
                             <option value="image">Images</option>
@@ -190,25 +176,24 @@ const MyFiles = () => {
                         <List
                             onClick={() => setViewMode("list")}
                             size={24}
-                            className={`cursor-pointer transition-colors ${viewMode === 'list' ? 'text-blue-600': 'text-gray-400 hover:text-gray-600'}`} />
+                            className={`cursor-pointer transition-colors ${viewMode === 'list' ? 'text-purple-600': 'text-gray-400 hover:text-gray-600'}`}
+                        />
                         <Grid
                             size={24}
                             onClick={() => setViewMode("grid")}
-                            className={`cursor-pointer transition-colors ${viewMode === 'grid' ? 'text-blue-600': 'text-gray-400 hover:text-gray-600'}`} />
+                            className={`cursor-pointer transition-colors ${viewMode === 'grid' ? 'text-purple-600': 'text-gray-400 hover:text-gray-600'}`}
+                        />
                     </div>
                 </div>
 
                 {filteredFiles.length === 0 ? (
                     <div className="bg-white rounded-lg shadow p-12 flex flex-col items-center justify-center">
-                        <File
-                            size={60}
-                            className="text-purple-300 mb-4"
-                        />
+                        <File size={60} className="text-purple-300 mb-4" />
                         <h3 className="text-xl font-medium text-gray-700 mb-2">
                             No files uploaded yet
                         </h3>
                         <p className="text-gray-500 text-center max-w-md mb-6">
-                            Start uploading files to see them listed here. you can upload
+                            Start uploading files to see them listed here. You can upload
                             documents, images, and other files to share and manage them securely.
                         </p>
                         <button
@@ -217,7 +202,7 @@ const MyFiles = () => {
                             Go to Upload
                         </button>
                     </div>
-                ): viewMode === "grid" ? (
+                ) : viewMode === "grid" ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                         {filteredFiles.map((file) => (
                             <FileCard
@@ -251,26 +236,24 @@ const MyFiles = () => {
                                         onDelete={openDeleteConfirmation}
                                         onTogglePublic={togglePublic}
                                         onShareLink={openShareModal}
-                                        getFileIcon={getFileIcon}
                                     />
                                 ))}
                             </tbody>
                         </table>
                     </div>
                 )}
-                {/* Delete confiramtion dialog*/}
+
                 <ConfirmationDialog
                     isOpen={deleteConfirmation.isOpen}
                     onClose={closeDeleteConfirmation}
                     title="Delete File"
-                    message="Are you sure want to delete this file? This action cannot be undone."
+                    message="Are you sure you want to delete this file? This action cannot be undone."
                     confirmText="Delete"
                     cancelText="Cancel"
                     onConfirm={handleDelete}
                     confirmButtonClass="bg-red-600 hover:bg-red-700"
                 />
 
-                {/* Share link modal */}
                 <LinkShareModal
                     isOpen={shareModal.isOpen}
                     onClose={closeShareModal}

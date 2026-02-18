@@ -42,7 +42,7 @@ const FileListRow = ({
             onClick={() => onTogglePublic(file)}
             className="flex items-center gap-2 group"
           >
-            {file.isPublic ? (
+            {file.publicStatus ? (
               <>
                 <Globe size={16} className="text-green-500" />
                 <span className="group-hover:underline">Public</span>
@@ -55,10 +55,10 @@ const FileListRow = ({
             )}
           </button>
 
-          {file.isPublic && (
+          {file.publicStatus && (
             <button
               onClick={() => onShareLink(file.id)}
-              className="flex items-center gap-2 text-blue-600 group"
+              className="flex items-center gap-2 text-purple-600 group"
             >
               <Copy size={16} />
               <span className="group-hover:underline">Share</span>
@@ -68,21 +68,33 @@ const FileListRow = ({
       </td>
 
       <td className="px-6 py-4">
-        <div className="grid grid-cols-3 gap-4">
-          <button onClick={() => onDownload(file)}>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => onDownload(file)}
+            className="text-purple-600 hover:text-purple-800"
+            title="Download"
+          >
             <Download size={18} />
           </button>
 
-          <button onClick={() => onDelete(file.id)}>
+          <button
+            onClick={() => onDelete(file.id)}
+            className="text-red-600 hover:text-red-800"
+            title="Delete"
+          >
             <Trash2 size={18} />
           </button>
 
-          {file.isPublic ? (
-            <a href={`/file/${file.id}`} target="_blank" rel="noreferrer">
+          {file.publicStatus && (
+            <a
+              href={`/file/${file.id}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-blue-600 hover:text-blue-800"
+              title="View Public Link"
+            >
               <Eye size={18} />
             </a>
-          ) : (
-            <span />
           )}
         </div>
       </td>

@@ -1,6 +1,5 @@
 import {useEffect, useState} from "react";
 import {useParams} from "react-router-dom";
-import {useAuth} from "@clerk/clerk-react";
 import axios from "axios";
 import {apiEndpoints} from "../util/apiEndpoints.js";
 import toast from "react-hot-toast";
@@ -15,22 +14,19 @@ const PublicFileView = () => {
         isOpen: false,
         link: ""
     });
-    const {getToken} = useAuth();
     const {fileId} = useParams();
 
     useEffect(() => {
         const getFile = async () => {
             setIsLoading(true);
             try {
-                // Re-added token fetching and authorization header
-                const res = await axios.get(
-                    apiEndpoints.PUBLIC_FILE_VIEW(fileId)
-                );
+                const res = await axios.get(apiEndpoints.PUBLIC_FILE_VIEW(fileId));
                 setFile(res.data);
                 setError(null);
             } catch (err) {
                 console.error("Error fetching file:", err);
                 setError(
+                    err.response?.data?.error ||
                     "Could not retrieve file. The link may be invalid or the file may have been removed."
                 );
             } finally {
@@ -38,29 +34,20 @@ const PublicFileView = () => {
             }
         };
         getFile();
-    }, [fileId, getToken]);
+    }, [fileId]);
 
     const handleDownload = async () => {
         try {
-            // This endpoint might also require a token depending on your backend setup
-            const response = await axios.get(
-                apiEndpoints.DOWNLOAD_FILE(fileId),
-                {
-                    responseType: "blob",
-                }
-            );
+            const response = await axios.get(apiEndpoints.PUBLIC_DOWNLOAD_FILE(fileId));
 
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement("a");
-            link.href = url;
-            link.setAttribute("download", file.name); // Use the actual file name
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(url); // Clean up the object URL
+            if (response.data.url) {
+                window.open(response.data.url, "_blank");
+                toast.success('Download started');
+            }
+
         } catch (err) {
             console.error("Download failed:", err);
-            toast.error("Sorry, the file could not be downloaded.");
+            toast.error(err.response?.data?.error || "Sorry, the file could not be downloaded.");
         }
     };
 
@@ -104,12 +91,12 @@ const PublicFileView = () => {
             <header className="p-4 border-b bg-white">
                 <div className="container mx-auto flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                        <Share2 className="text-blue-600" />
+                        <Share2 className="text-purple-600" />
                         <span className="font-bold text-xl text-gray-800">CloudShare</span>
                     </div>
                     <button
                         onClick={openShareModal}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors"
                     >
                         <Copy size={18} />
                         Share Link
@@ -117,13 +104,12 @@ const PublicFileView = () => {
                 </div>
             </header>
 
-            {/* Main Content */}
             <main className="container mx-auto p-4 md:p-8 flex justify-center">
                 <div className="w-full max-w-3xl">
                     <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-8 text-center">
                         <div className="flex justify-center mb-4">
-                            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center">
-                                <File size={40} className="text-blue-500" />
+                            <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center">
+                                <File size={40} className="text-purple-500" />
                             </div>
                         </div>
 
@@ -137,15 +123,15 @@ const PublicFileView = () => {
                         </p>
 
                         <div className="my-6">
-              <span className="inline-block bg-gray-100 text-gray-600 text-xs font-medium px-3 py-1 rounded-full uppercase">
-                {file.type || "File"}
-              </span>
+                            <span className="inline-block bg-gray-100 text-gray-600 text-xs font-medium px-3 py-1 rounded-full uppercase">
+                                {file.type || "File"}
+                            </span>
                         </div>
 
                         <div className="flex justify-center gap-4 my-8">
                             <button
                                 onClick={handleDownload}
-                                className="flex items-center gap-2 px-6 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors shadow"
+                                className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors shadow"
                             >
                                 <Download size={18} />
                                 Download File
@@ -162,8 +148,8 @@ const PublicFileView = () => {
                                 <div className="flex justify-between">
                                     <span className="text-gray-500">File Name:</span>
                                     <span className="text-gray-800 font-medium break-all">
-                    {file.name}
-                  </span>
+                                        {file.name}
+                                    </span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-gray-500">File Type:</span>
@@ -172,20 +158,20 @@ const PublicFileView = () => {
                                 <div className="flex justify-between">
                                     <span className="text-gray-500">File Size:</span>
                                     <span className="text-gray-800 font-medium">
-                    {(file.size / 1024).toFixed(2)} KB
-                  </span>
+                                        {(file.size / 1024).toFixed(2)} KB
+                                    </span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-gray-500">Shared:</span>
                                     <span className="text-gray-800 font-medium">
-                    {new Date(file.uploadedAt).toLocaleDateString()}
-                  </span>
+                                        {new Date(file.uploadedAt).toLocaleDateString()}
+                                    </span>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="mt-6 bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg flex items-center gap-4">
+                    <div className="mt-6 bg-purple-50 border border-purple-200 text-purple-800 p-4 rounded-lg flex items-center gap-4">
                         <Info size={20} />
                         <p className="text-sm">
                             This file has been shared publicly. Anyone with this link can view
@@ -194,6 +180,7 @@ const PublicFileView = () => {
                     </div>
                 </div>
             </main>
+
             <LinkShareModal
                 isOpen={shareModal.isOpen}
                 onClose={closeShareModal}
