@@ -6,7 +6,7 @@ import {
   Lock,
   Trash2
 } from "lucide-react";
-import { getFileIcon, getSafeFileName } from "../util/fileUtils";
+import { getFileIcon } from "../util/fileUtils";
 
 const FileListRow = ({
   file,
@@ -15,7 +15,16 @@ const FileListRow = ({
   onTogglePublic,
   onShareLink
 }) => {
-  const fileName = getSafeFileName(file);
+  // ✅ Use file.name directly from backend
+  const fileName = file?.name || "Unknown file";
+
+  // ✅ Format file size properly
+  const formatSize = (bytes) => {
+    if (!bytes || bytes === 0) return "0 KB";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  };
 
   return (
     <tr className="hover:bg-gray-50 transition-colors">
@@ -29,11 +38,11 @@ const FileListRow = ({
       </td>
 
       <td className="px-6 py-4 text-sm text-gray-600">
-        {(file.size / 1024).toFixed(1)} KB
+        {formatSize(file?.size)}
       </td>
 
       <td className="px-6 py-4 text-sm text-gray-600">
-        {new Date(file.uploadedAt).toLocaleDateString()}
+        {file?.uploadedAt ? new Date(file.uploadedAt).toLocaleDateString() : '-'}
       </td>
 
       <td className="px-6 py-4 text-sm text-gray-600">
@@ -42,7 +51,7 @@ const FileListRow = ({
             onClick={() => onTogglePublic(file)}
             className="flex items-center gap-2 group"
           >
-            {file.publicStatus ? (
+            {file?.publicStatus ? (
               <>
                 <Globe size={16} className="text-green-500" />
                 <span className="group-hover:underline">Public</span>
@@ -55,7 +64,7 @@ const FileListRow = ({
             )}
           </button>
 
-          {file.publicStatus && (
+          {file?.publicStatus && (
             <button
               onClick={() => onShareLink(file.id)}
               className="flex items-center gap-2 text-purple-600 group"
@@ -85,7 +94,7 @@ const FileListRow = ({
             <Trash2 size={18} />
           </button>
 
-          {file.publicStatus && (
+          {file?.publicStatus && (
             <a
               href={`/file/${file.id}`}
               target="_blank"

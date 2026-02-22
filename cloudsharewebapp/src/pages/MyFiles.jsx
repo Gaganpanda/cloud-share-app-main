@@ -44,7 +44,9 @@ const MyFiles = () => {
             const response = await axios.get(apiEndpoints.FETCH_FILES, {
                 headers: {Authorization: `Bearer ${token}`}
             });
+
             if (response.status === 200) {
+                console.log("✅ Files fetched:", response.data);
                 setFiles(response.data);
             }
         } catch (error) {
@@ -56,29 +58,32 @@ const MyFiles = () => {
     const togglePublic = async (fileToUpdate) => {
         try {
             const token = await getToken();
-            await axios.patch(
+            const response = await axios.patch(
                 apiEndpoints.TOGGLE_FILE(fileToUpdate.id),
                 {},
                 {headers: {Authorization: `Bearer ${token}`}}
             );
 
+            console.log("Toggle response:", response.data);
+
+            // ✅ Update using the response from backend
             setFiles(files.map((file) =>
                 file.id === fileToUpdate.id
-                    ? {...file, publicStatus: !file.publicStatus}
+                    ? {...file, publicStatus: response.data.publicStatus}
                     : file
             ));
 
-            toast.success(fileToUpdate.publicStatus ? 'File is now private' : 'File is now public');
+            toast.success(response.data.publicStatus ? 'File is now public' : 'File is now private');
         } catch (error) {
             console.error('Error toggling file status', error);
             toast.error('Failed to update file status');
         }
     }
 
-    // ✅ FIXED DOWNLOAD HANDLER - Uses Cloudinary URL
     const handleDownload = async (file) => {
         try {
             const token = await getToken();
+            console.log("🔽 Downloading file:", file.id);
 
             const response = await axios.get(
                 apiEndpoints.DOWNLOAD_FILE(file.id),
@@ -87,14 +92,19 @@ const MyFiles = () => {
                 }
             );
 
+            console.log("Download response:", response.data);
+
             if (response.data.url) {
                 window.open(response.data.url, "_blank");
                 toast.success('Download started');
+            } else {
+                toast.error('No download URL received');
             }
 
         } catch (error) {
-            console.error("Download failed", error);
-            toast.error("Failed to download file");
+            console.error("❌ Download failed", error);
+            console.error("Error response:", error.response?.data);
+            toast.error(error.response?.data?.error || "Failed to download file");
         }
     };
 

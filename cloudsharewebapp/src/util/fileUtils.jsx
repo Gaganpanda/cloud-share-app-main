@@ -3,17 +3,10 @@ import { FileIcon, FileText, Music, Video, Image } from "lucide-react";
 // ✅ Always returns a valid filename string
 export const getSafeFileName = (file) => {
   if (!file) return "Unknown file";
-
-  return (
-    file.originalName ||
-    file.fileName ||
-    file.filename ||
-    file.name ||
-    "Unknown file"
-  );
+  return file.name || "Unknown file";
 };
 
-// ✅ Never crashes
+// ✅ Never crashes - handles all edge cases
 export const getFileIcon = (fileName) => {
   if (!fileName || typeof fileName !== "string") {
     return <FileIcon size={18} className="text-blue-600" />;
