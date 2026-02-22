@@ -2,31 +2,41 @@ package in.Gagan.cloudshareapi.document;
 
 import lombok.*;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
 
 @Document(collection = "files")
-@Getter
-@Setter
-@Builder
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class FileMetadataDocument {
 
     @Id
     private String id;
 
-    private String fileName;
-    private String fileType;
-    private Long fileSize;
+    private String name;
+    private String type;
+    private Long size;
 
-    private String secureUrl;
-    private String publicId;
-
+    @Indexed
     private String clerkId;
 
-    private Boolean isPublic;
+    private boolean publicStatus;
+
+    private String fileLocation; // Cloudinary URL
+
+    private String cloudinaryPublicId;
 
     private LocalDateTime uploadedAt;
+
+    public boolean isPublic() {
+        return publicStatus;
+    }
+
+    public void setPublic(boolean publicStatus) {
+        this.publicStatus = publicStatus;
+    }
 }

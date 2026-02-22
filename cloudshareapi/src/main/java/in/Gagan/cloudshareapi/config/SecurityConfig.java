@@ -13,7 +13,9 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.*;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Configuration
 @RequiredArgsConstructor
@@ -21,8 +23,8 @@ public class SecurityConfig {
 
     private final ClerkJwtAuthFilter clerkJwtAuthFilter;
 
-    // ✅ Read allowed origins from environment variable
-    @Value("${allowed.origins:http://localhost:5173}")
+    // Read from env variable
+    @Value("${allowed.origins:http://localhost:5174}")
     private String allowedOrigins;
 
     @Bean
@@ -38,41 +40,43 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/webhooks/**",
                                 "/health",
-                                "/files/public/**"
+                                "/files/public/**",
+                                "/files/download/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(clerkJwtAuthFilter,
-                        UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(
+                        clerkJwtAuthFilter,
+                        UsernamePasswordAuthenticationFilter.class
+                );
 
         return http.build();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+
         CorsConfiguration config = new CorsConfiguration();
 
-        // ✅ Split comma-separated origins from env var
-        List<String> origins = List.of(allowedOrigins.split(","));
+        // Clean & trim values (important)
+        List<String> origins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .collect(Collectors.toList());
+
         config.setAllowedOrigins(origins);
 
         config.setAllowedMethods(List.of(
                 "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"
         ));
-        config.setAllowedHeaders(List.of(
-                "Authorization",
-                "Content-Type",
-                "Accept",
-                "Origin",
-                "X-Requested-With",
-                "Access-Control-Request-Method",
-                "Access-Control-Request-Headers"
-        ));
+
+        config.setAllowedHeaders(List.of("*"));
         config.setExposedHeaders(List.of("Authorization"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
         source.registerCorsConfiguration("/**", config);
 
         return source;
